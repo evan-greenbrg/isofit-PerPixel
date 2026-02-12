@@ -1,0 +1,13 @@
+# URL reflects containers run locally
+
+# Begin inversion task for the test json
+curl -X POST http://localhost:8000/process \
+  -H "Content-Type: application/json" \
+  -d @test_call.json
+
+# Check status of inversion task
+curl -X GET http://localhost:8000/result/{task_id}
+
+# Download reslt of inversion task to csv.
+# NOTE: will "wait" for success or failure
+curl -o path/to/output.csv http://localhost:8000/download/{task_id}
