@@ -4,3 +4,5 @@ celery
 redis
 requests
 pydantic[email]
+pwdlib
+pyjwt

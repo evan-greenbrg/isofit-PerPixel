@@ -9,10 +9,13 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    env_file: .env
     environment:
       REDIS_HOST: redis
       ISOFIT_DEBUG: "1"
     restart: unless-stopped
+    volumes: 
+      - ${ISOFIT_USERS_PATH}:/app/user_data
 
   worker:
     build:

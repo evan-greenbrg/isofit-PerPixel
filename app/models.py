@@ -23,3 +23,22 @@ class ResultResponse(BaseModel):
     status: str
     result: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
+
+
+class TokenData(BaseModel):
+    username: str | None = None
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class User(BaseModel):
+    username: str
+    description: str = None
+    disabled: Optional[bool] = None
+
+
+class UserInDB(User):
+    hashed_password: str

@@ -1,11 +1,24 @@
 import time
 import csv
 import io
-from fastapi import FastAPI, HTTPException
+from typing import Annotated
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.responses import StreamingResponse
 from celery.result import AsyncResult
 
-from models import InversionInput, TaskResponse, ResultResponse
+from auth import (
+    authenticate_user,
+    create_access_token,
+    get_current_active_user
+)
+from models import (
+    InversionInput,
+    TaskResponse,
+    ResultResponse,
+    Token,
+    User,
+)
 from tasks import run_inversion
 
 
@@ -15,12 +28,41 @@ app = FastAPI(
 )
 
 
+@app.post("/token")
+async def login_for_access_token(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+) -> Token:
+    user = authenticate_user(
+        form_data.username,
+        form_data.password
+    )
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = create_access_token(data={"sub": user.username})
+
+    return Token(access_token=access_token, token_type="bearer")
+
+
+@app.get("/users/me/")
+async def read_users_me(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+) -> User:
+    return current_user
+
+
 @app.post(
     "/process",
     response_model=TaskResponse,
     status_code=202
 )
-async def submit_task(input_data: InversionInput):
+async def submit_task(
+    input_data: InversionInput,
+    current_user: User = Depends(get_current_active_user)
+):
     try:
         data_dict = input_data.model_dump()
         task = run_inversion.delay(data_dict)
@@ -38,7 +80,10 @@ async def submit_task(input_data: InversionInput):
     "/result/{task_id}",
     response_model=ResultResponse
 )
-async def get_result(task_id: str):
+async def get_result(
+    task_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
     task = AsyncResult(task_id)
 
     if task.state == "PENDING":
@@ -64,7 +109,10 @@ async def get_result(task_id: str):
 
 
 @app.delete("/task/{task_id}")
-async def cancel_task(task_id: str):
+async def cancel_task(
+    task_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
     task = AsyncResult(task_id)
     task.revoce(terminate=True)
 
@@ -72,12 +120,17 @@ async def cancel_task(task_id: str):
 
 
 @app.get("/health")
-async def health_check():
+async def health_check(
+    current_user: User = Depends(get_current_active_user)
+):
     return {"status": "healthy"}
 
 
 @app.get("/download/{task_id}")
-async def download_result(task_id: str):
+async def download_result(
+    task_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
     task = AsyncResult(task_id)
 
     if task.state == "failed":
