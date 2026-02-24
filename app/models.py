@@ -1,3 +1,6 @@
+from functools import wraps
+import inspect
+
 from pydantic import BaseModel
 from typing import Optional, Dict, Any
 
@@ -85,7 +88,7 @@ class InversionData:
 
     def __array_(self, dtype=None, copy=None):
         return np.array(self.data, dtype=dtype)
-    
+
     def array(self):
         return np.array(self.data)
 
@@ -121,3 +124,20 @@ class OutputData:
         return f"OutputData:\nNumber of rows: {len(self)}"
 
 
+def enforce_annotations(func):
+    hints = inspect.get_annotations(func)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        bound = inspect.signature(func).bind(*args, **kwargs)
+
+        new_args = {}
+        for name, value in bound.arguments.items():
+            arg_type = hints.get(name)
+            if arg_type and not isinstance(value, arg_type):
+                new_args[name] = arg_type(value)
+            else:
+                new_args[name] = value
+
+        return func(**new_args)
+    return wrapper
