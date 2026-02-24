@@ -6,3 +6,4 @@ requests
 pydantic[email]
 pwdlib
 pyjwt
+kombu

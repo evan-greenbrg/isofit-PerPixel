@@ -1,3 +1,4 @@
+import time
 import logging
 import pprint
 
@@ -502,6 +503,8 @@ def main(rdn_data, loc_data, obs_data,
       - Run-specific AOD bounds and width of h2o window after presolve
     """
 
+    start_time = time.time()
+
     if task_id:
         rundir = Path(rundir) / task_id
     else:
@@ -585,7 +588,10 @@ def main(rdn_data, loc_data, obs_data,
     if delete_all_files:
         shutil.rmtree(input_config.rundir)
 
+    end_time = time.time()
+
     return {
         'statevec': list(statevec),
-        'solution': list(x[-1])
+        'solution': list(x[-1]),
+        'runtime_seconds': round(end_time - start_time, 2)
     }

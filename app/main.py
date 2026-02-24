@@ -15,11 +15,12 @@ from auth import (
 from models import (
     InversionInput,
     TaskResponse,
+    TaskList,
     ResultResponse,
     Token,
     User,
 )
-from tasks import run_inversion
+from tasks import run_inversion, get_app_tasks
 
 
 app = FastAPI(
@@ -47,7 +48,7 @@ async def login_for_access_token(
     return Token(access_token=access_token, token_type="bearer")
 
 
-@app.get("/users/me/")
+@app.get("/users/me")
 async def read_users_me(
     current_user: Annotated[User, Depends(get_current_active_user)],
 ) -> User:
@@ -56,8 +57,7 @@ async def read_users_me(
 
 @app.post(
     "/process",
-    response_model=TaskResponse,
-    status_code=202
+    response_model=TaskResponse
 )
 async def submit_task(
     input_data: InversionInput,
@@ -76,6 +76,14 @@ async def submit_task(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/result/tasks")
+async def get_tasks(
+    current_user: User = Depends(get_current_active_user)
+):
+
+    return TaskList(tasks=get_app_tasks())
+
+
 @app.get(
     "/result/{task_id}",
     response_model=ResultResponse
@@ -89,21 +97,25 @@ async def get_result(
     if task.state == "PENDING":
         return ResultResponse(
             status="pending",
+            task_id=task_id,
             message="Task is waiting to be processed"
         )
     elif task.state == "PROGRESS":
         return ResultResponse(
             status="processing",
+            task_id=task_id,
             message="Task is running"
         )
     elif task.state == "SUCCESS":
         return ResultResponse(
             status="completed",
+            task_id=task_id,
             result=task.result
         )
     else:
         return ResultResponse(
             status="failed",
+            task_id=task_id,
             result=str(task.info)
         )
 

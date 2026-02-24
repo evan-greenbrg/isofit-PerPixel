@@ -19,8 +19,13 @@ class TaskResponse(BaseModel):
     status: str
 
 
+class TaskList(BaseModel):
+    tasks: list
+
+
 class ResultResponse(BaseModel):
     status: str
+    task_id: str
     result: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
 

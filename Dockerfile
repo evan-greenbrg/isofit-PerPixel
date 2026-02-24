@@ -8,6 +8,7 @@ RUN apt-get update &&\
       make \
       nano \
       vim-tiny \
+      redis-tools \
       git &&\
     rm -rf /var/lib/apt/lists/*
 
