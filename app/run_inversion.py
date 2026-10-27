@@ -1,4 +1,5 @@
 from collections import Counter
+import sys
 import time
 import logging
 import pprint
@@ -20,6 +21,10 @@ from isofit.configs import Config
 
 from models import InversionData, OutputData, enforce_annotations
 from isofit_config import InputConfig, FID
+
+
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG,
+                    format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 def oe_inversion(config, fm,
@@ -50,7 +55,10 @@ def oe_inversion(config, fm,
         obs=obs_data,
     )
     iv = Inversion(config, fm)
-    x = iv.invert(rdn_data, geom)
+    try:
+        x = iv.invert(rdn_data, geom)
+    except ValueError:
+        return [-9999. for i in range(fm.nstate)], [-9999. for i in range(fm.nstate)]
     S_hat, K, G = iv.calc_posterior(x[-1], geom, rdn_data)
     posterior_uncertainty = np.sqrt(np.diag(S_hat))
 
@@ -91,6 +99,8 @@ def main(
     utc_time: InversionData,
     surface_file_paths: InversionData,
     channelized_noise_paths: InversionData,
+    parametric_noise_paths: InversionData,
+    model_discrepancy_paths: InversionData,
     rdn_factors_paths: InversionData,
     wl: dict,
     fwhm: dict,
@@ -186,6 +196,8 @@ def main(
         batch_gid = gid[indexes]
         batch_surface_paths = surface_file_paths[indexes]
         batch_channelized_noise = channelized_noise_paths[indexes]
+        batch_parametric_noise = parametric_noise_paths[indexes]
+        batch_model_discrepancy = model_discrepancy_paths[indexes]
         batch_rdn_factors = rdn_factors_paths[indexes]
 
         # Make the LUT config for the entire batch:
@@ -196,6 +208,8 @@ def main(
         most_common_gid = Counter(batch_gid).most_common(1)[0][0]
         most_common_surface_path = Counter(batch_surface_paths).most_common(1)[0][0]
         most_common_channelized_noise = Counter(batch_channelized_noise).most_common(1)[0][0]
+        most_common_parametric_noise = Counter(batch_parametric_noise).most_common(1)[0][0]
+        most_common_model_discrepancy = Counter(batch_model_discrepancy).most_common(1)[0][0]
         batch_wl = np.array(wl[most_common_sensor])
         batch_fwhm = np.array(fwhm[most_common_sensor])
 
@@ -215,6 +229,8 @@ def main(
             surface_json_path=most_common_surface_path,
             n_cores=n_cores,
             channelized_uncertainty_file=most_common_channelized_noise,
+            parametric_noise_file=most_common_parametric_noise,
+            model_discrepancy_file=most_common_model_discrepancy,
             emulator_base=emulator_base
         )
 

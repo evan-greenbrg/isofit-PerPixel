@@ -23,68 +23,67 @@ INVERSION_WINDOWS = [[350.0, 1360.0], [1410, 1800.0], [1970.0, 2500.0]]
 
 class LUTConfig:
 
+    # Units of kilometers
+    elevation_spacing = 0.25
+    elevation_spacing_min = 0.2
+
+    # Units of g / m2
+    presolve_h2o_spacing = 0.64
+    h2o_spacing = 0.2
+    h2o_spacing_min = 0.03
+    h2o_min = 0.2
+    modtran_max_water = modtran_water_upperbound_polynomials()[
+        "ATM_MIDLAT_SUMMER"
+    ](0)
+    h2o_max = modtran_max_water
+
+    # Units of degrees
+    to_sensor_zenith_spacing = 10
+    to_sensor_zenith_spacing_min = 2
+
+    # Units of degrees
+    to_sun_zenith_spacing = 10
+    to_sun_zenith_spacing_min = 2
+
+    # Units of degrees
+    relative_azimuth_spacing = 60
+    relative_azimuth_spacing_min = 25
+
+    # Units of AOD
+    aerosol_0_spacing = 0
+    aerosol_0_spacing_min = 0
+
+    # Units of AOD
+    aerosol_1_spacing = 0
+    aerosol_1_spacing_min = 0
+
+    # Units of AOD
+    aerosol_2_spacing = 0.1
+    aerosol_2_spacing_min = 0
+
+    # Units of AOD
+    modtran_min_aerosol = modtran_aot_lowerbound_polynomials()[
+        "ATM_MIDLAT_SUMMER"
+    ](0)
+    aerosol_0_range = [modtran_min_aerosol, 1]
+    aerosol_1_range = [modtran_min_aerosol, 1]
+    aerosol_2_range = [modtran_min_aerosol, 1]
+    aot_550_range = [modtran_min_aerosol, 1]
+
+    aot_550_spacing = 0
+    aot_550_spacing_min = 0
+
+    # CO2 ppm
+    co2_range = [380, 440]
+    co2_spacing = 60
+    co2_spacing_min = 60
+
     def __init__(
         self,
         no_min_lut_spacing: bool = False,
-        atmosphere_type="ATM_MIDLAT_SUMMER",
+        emulator: str = None,
         **kwargs,
     ):
-        # Units of kilometers
-        self.elevation_spacing = 0.25
-        self.elevation_spacing_min = 0.2
-
-        # Units of g / m2
-        self.h2o_spacing = 0.25
-        self.h2o_spacing_min = 0.03
-
-        # Special parameter to specify the minimum allowable water vapor value in g / m2
-        self.h2o_min = 0.2
-        modtran_max_water = modtran_water_upperbound_polynomials()[
-            atmosphere_type
-        ](0)
-        self.h2o_max = modtran_max_water
-
-        # Units of degrees
-        self.to_sensor_zenith_spacing = 10
-        self.to_sensor_zenith_spacing_min = 2
-
-        # Units of degrees
-        self.to_sun_zenith_spacing = 10
-        self.to_sun_zenith_spacing_min = 2
-
-        # Units of degrees
-        self.relative_azimuth_spacing = 30      # Set lower than dev
-        self.relative_azimuth_spacing_min = 15
-
-        # Units of AOD
-        self.aerosol_0_spacing = 0
-        self.aerosol_0_spacing_min = 0
-
-        # Units of AOD
-        self.aerosol_1_spacing = 0
-        self.aerosol_1_spacing_min = 0
-
-        # Units of AOD
-        self.aerosol_2_spacing = 0.1
-        self.aerosol_2_spacing_min = 0
-
-        # Units of AOD
-        modtran_min_aerosol = modtran_aot_lowerbound_polynomials()[
-            atmosphere_type
-        ](0)
-        self.aerosol_0_range = [modtran_min_aerosol, 1]
-        self.aerosol_1_range = [modtran_min_aerosol, 1]
-        self.aerosol_2_range = [modtran_min_aerosol, 1]
-        self.aot_550_range = [modtran_min_aerosol, 1]
-
-        self.aot_550_spacing = 0
-        self.aot_550_spacing_min = 0
-
-        # CO2 ppm
-        self.co2_range = [380, 440]
-        self.co2_spacing = 60
-        self.co2_spacing_min = 60
-
         self.no_min_lut_spacing = no_min_lut_spacing
 
         aerosol_keys = [
@@ -101,8 +100,8 @@ class LUTConfig:
 
         # Do this after overrides, let's you pass in min-max h2o
         self.h2o_range = [
-            self.h2o_min, 
-            min(self.h2o_max, modtran_max_water)
+            self.h2o_min,
+            min(self.h2o_max, self.modtran_max_water),
         ]
 
         # Update aerosol ranges for Modtran ranges
@@ -110,11 +109,16 @@ class LUTConfig:
             if key in self.__dict__:
                 config_range = getattr(self, key, [0, 1])
                 valid_range = [
-                    max(modtran_min_aerosol, config_range[0]),
+                    max(self.modtran_min_aerosol, config_range[0]),
                     config_range[1],
                 ]
                 setattr(self, key, valid_range)
 
+        if emulator is not None and os.path.splitext(emulator)[1] != ".jld2":
+            self.aot_550_range = self.aerosol_2_range
+            self.aot_550_spacing = self.aerosol_2_spacing
+            self.aot_550_spacing_min = self.aerosol_2_spacing_min
+            self.aerosol_2_spacing = 0
 
     def get_grid_with_data(
         self, data_input: np.array, spacing: float, min_spacing: float
@@ -189,11 +193,14 @@ class InputConfig:
         modtran_path: str = None,
         emulator_base: str = None,
         channelized_uncertainty_file: str = '',
+        parametric_noise_file: str = '',
+        model_discrepancy_file: str = '',
         ray_temp_dir: str = '/tmp/ray',
         ray_address: str = None,
         atmosphere_type="ATM_MIDLAT_SUMMER",
         surface_category="multicomponent_surface",
-        terrain_style: str = "flat",
+        # terrain_style: str = "flat",
+        terrain_style: str = "dem",
         max_slope: float = 20.0,
         n_cores: int = 1
     ):
@@ -292,14 +299,14 @@ class InputConfig:
         self.surface_category = surface_category
         self.inversion_windows = INVERSION_WINDOWS
         self.channelized_uncertainty_file = channelized_uncertainty_file
+        self.noise_path = parametric_noise_file 
+        self.input_model_discrepancy_path = model_discrepancy_file 
 
         # Files not hooked up yet
         self.eof_path = None
         self.eof_working_path = None
-        self.noise_path = None
         self.uncorrelated_radiometric_uncertainty = None
         self.dn_uncertainty_file = None
-        self.input_model_discrepancy_path = None
 
         self.terrain_style = terrain_style
         self.max_slope = max_slope
@@ -336,6 +343,7 @@ class InputConfig:
             to_sensor_zenith_spacing=kwargs.get("to_sensor_zenith_spacing"),
             to_sun_zenith_spacing=kwargs.get("to_sun_zenith_spacing"),
             relative_azimuth_spacing=kwargs.get("relative_azimuth_spacing"),
+            emulator=self.emulator_base,
         )
 
         h2o_lut_grid = lut_params.get_grid(
@@ -609,7 +617,7 @@ def sensor_name_to_dt(sensor: str, fid: str):
     inversion_window_update = None
     sensor = sensor.lower()
     fid = fid.lower()
-    if sensor == "aviris_ng":
+    if sensor == "aviris-ng":
         # parse flightline ID (AVIRIS-NG assumptions)
         dt = datetime.strptime(fid[3:], "%Y%m%dt%H%M%S")
     elif sensor == "neon ais 1":
@@ -627,7 +635,7 @@ def sensor_name_to_dt(sensor: str, fid: str):
 def FID(sensor: str):
     calls = {
         'ang': lambda path: split(path)[-1][:18],
-        'aviris_ng': lambda path: split(path)[-1][:18],
+        'aviris-ng': lambda path: split(path)[-1][:18],
         'av3': lambda path: split(path)[-1][:18],
         'av5': lambda path: split(path)[-1][:18],
         'avcl': lambda path: split(path)[-1][:16],
@@ -641,6 +649,6 @@ def FID(sensor: str):
         'gao': lambda path: split(path)[-1][:23],
         'oci': lambda path: split(path)[-1][:24],
         'tanager': lambda path: split(path)[-1][:23],
-        'NA-': lambda path: os.path.splitext(os.path.basename(path))[0],
+        'na-': lambda path: os.path.splitext(os.path.basename(path))[0],
     }
     return calls[sensor.lower()]
